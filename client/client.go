@@ -45,7 +45,7 @@ func printLike(client pb.BeerLikesClient, query *pb.LikeQuery) {
 // printLikes lists all the likes within the given bounding RefType.
 func printLikes(client pb.BeerLikesClient, query *pb.LikesQuery) {
 	startTime := time.Now()
-	log.Printf("Looking for likes within %v", query)
+	log.Printf("Looking for all likes within %v", query)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	stream, err := client.ListLikes(ctx, query)
@@ -61,7 +61,7 @@ func printLikes(client pb.BeerLikesClient, query *pb.LikesQuery) {
 		if err != nil {
 			log.Fatalf("%v.ListLikes(_) = _, %v", client, err)
 		}
-		log.Println(item)
+		// log.Println(item)
 		likesSummary.Likes = append(likesSummary.Likes, item)
 		if item.Liked {
 			likesSummary.Total++
@@ -71,6 +71,18 @@ func printLikes(client pb.BeerLikesClient, query *pb.LikesQuery) {
 	}
 	endTime := time.Now()
 	likesSummary.ElapsedTime = uint64(endTime.Sub(startTime))
+	log.Println(likesSummary)
+}
+
+// printLikesSummary lists all the likes within the given bounding RefType.
+func printLikesSummary(client pb.BeerLikesClient, query *pb.LikesQuery) {
+	log.Printf("Looking for all likes within %v", query)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	likesSummary, err := client.GetLikesSummary(ctx, query)
+	if err != nil {
+		log.Fatalf("%v.GetLikesSummary(_) = _, %v: ", client, err)
+	}
 	log.Println(likesSummary)
 }
 
@@ -106,6 +118,11 @@ func main() {
 
 	// return all the likes for a given reftype
 	printLikes(client, &pb.LikesQuery{
+		RefType: &pb.RefType{Name: "beer", Id: "1"},
+	})
+
+	// return all the likes for a given reftype
+	printLikesSummary(client, &pb.LikesQuery{
 		RefType: &pb.RefType{Name: "beer", Id: "1"},
 	})
 
