@@ -1,0 +1,22 @@
+[{
+    "ref_type": {
+        "name": "beer",
+        "id": "1"
+    },
+    "id": "3e8f9d58-4148-4809-9392-63e90fbc8280",
+    "liked": true
+}, {
+    "ref_type": {
+        "name": "beer",
+        "id": "1"
+    },
+    "id": "3e8f9d58-4148-4809-9392-63e90fbc8281",
+    "liked": true
+}, {
+    "ref_type": {
+        "name": "beer",
+        "id": "2"
+    },
+    "id": "3e8f9d58-4148-4809-9392-63e90fbc8283",
+    "liked": true
+}]
