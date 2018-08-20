@@ -95,7 +95,7 @@ func (s *beerLikesServer) GetLikesSummary(ctx context.Context, query *pb.LikesQu
 	return &pb.LikesSummary{
 		Likes:       likes,
 		Total:       total,
-		ElapsedTime: uint32(endTime.Sub(startTime).Seconds()),
+		ElapsedTime: uint64(endTime.Sub(startTime)),
 	}, nil
 }
 

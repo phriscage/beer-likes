@@ -12,6 +12,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"log"
 	"time"
 
@@ -40,6 +41,40 @@ func printLike(client pb.BeerLikesClient, query *pb.LikeQuery) {
 	}
 	log.Println(like)
 }
+
+// printLikes lists all the likes within the given bounding RefType.
+func printLikes(client pb.BeerLikesClient, query *pb.LikesQuery) {
+	startTime := time.Now()
+	log.Printf("Looking for likes within %v", query)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	stream, err := client.ListLikes(ctx, query)
+	likesSummary := pb.LikesSummary{}
+	if err != nil {
+		log.Fatalf("%v.ListLikes(_) = _, %v", client, err)
+	}
+	for {
+		item, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("%v.ListLikes(_) = _, %v", client, err)
+		}
+		log.Println(item)
+		likesSummary.Likes = append(likesSummary.Likes, item)
+		if item.Liked {
+			likesSummary.Total++
+		} else {
+			likesSummary.Total--
+		}
+	}
+	endTime := time.Now()
+	likesSummary.ElapsedTime = uint64(endTime.Sub(startTime))
+	log.Println(likesSummary)
+}
+
+// Main
 func main() {
 	flag.Parse()
 	var opts []grpc.DialOption
@@ -68,5 +103,10 @@ func main() {
 
 	// Like missing.
 	printLike(client, &pb.LikeQuery{})
+
+	// return all the likes for a given reftype
+	printLikes(client, &pb.LikesQuery{
+		RefType: &pb.RefType{Name: "beer", Id: "1"},
+	})
 
 }
