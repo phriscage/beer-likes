@@ -23,14 +23,12 @@ import (
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/testdata"
 
 	"github.com/golang/protobuf/proto"
 
-	// pb "github.com/phriscage/beer-likes/beerlikes"
-	pb "../beerlikes"
+	pb "github.com/phriscage/beer-likes/beerlikes"
 )
 
 var (
