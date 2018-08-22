@@ -16,21 +16,20 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
-	"log"
 	"net"
+	"os"
 	"time"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/testdata"
 
 	"github.com/golang/protobuf/proto"
 
-	// pb "github.com/phriscage/beer-likes/beerlikes"
-	pb "../beerlikes"
+	pb "github.com/phriscage/beer-likes/beerlikes"
 )
 
 var (
@@ -47,8 +46,22 @@ type beerLikesServer struct {
 	//routeNotes map[string][]*pb.RouteNote
 }
 
+// Init
+func init() {
+	// Log as JSON instead of the default ASCII formatter.
+	//log.SetFormatter(&log.JSONFormatter{})
+
+	// Output to stdout instead of the default stderr
+	// Can be any io.Writer, see below for File example
+	log.SetOutput(os.Stdout)
+
+	// Only log the debug severity or above.
+	log.SetLevel(log.DebugLevel)
+}
+
 // GetLike returns the feature at the given Like.
 func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb.Like, error) {
+	log.Debugf("GetLike query: '%v'", query)
 	if query == nil {
 		return &pb.Like{}, nil
 	}
@@ -63,6 +76,7 @@ func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb
 
 // ListLikes lists all likes contained within the given bounding Like.
 func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_ListLikesServer) error {
+	log.Debugf("ListLikes query: '%v'", query)
 	if query.RefType == nil {
 		return nil
 	}
@@ -78,6 +92,7 @@ func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_Li
 
 // GetLikesSummary batch fetches the likes contained within the given bounding Like.
 func (s *beerLikesServer) GetLikesSummary(ctx context.Context, query *pb.LikesQuery) (*pb.LikesSummary, error) {
+	log.Debugf("GetLikesSummary query: '%v'", query)
 	var total int32
 	var likes []*pb.Like
 	startTime := time.Now()
@@ -122,7 +137,7 @@ func newServer() *beerLikesServer {
 
 func main() {
 	flag.Parse()
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", *port))
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -140,7 +155,9 @@ func main() {
 		}
 		opts = []grpc.ServerOption{grpc.Creds(creds)}
 	}
+	log.Infof("Starting grpc server on '%d'", port)
 	grpcServer := grpc.NewServer(opts...)
 	pb.RegisterBeerLikesServer(grpcServer, newServer())
 	grpcServer.Serve(lis)
+	log.Infof("Stopping grpc server...")
 }

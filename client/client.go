@@ -16,11 +16,12 @@ import (
 	"log"
 	"time"
 
-	pb "../beerlikes"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/testdata"
+
+	pb "github.com/phriscage/beer-likes/beerlikes"
 )
 
 var (
