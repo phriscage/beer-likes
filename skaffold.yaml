@@ -6,7 +6,7 @@ build:
 deploy:
   kubectl:
     manifests:
-      - k8s-*
+      - ./kubernetes-manifests/*.yaml
 profiles:
   - name: gcb
     build:

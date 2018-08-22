@@ -27,6 +27,7 @@ RUN go get -d -v \
 	google.golang.org/grpc \
 	google.golang.org/grpc/credentials \
 	google.golang.org/grpc/testdata \
+        github.com/sirupsen/logrus \
 	github.com/golang/protobuf/proto
 
 # Add the sample data
