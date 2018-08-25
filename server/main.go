@@ -25,6 +25,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/testdata"
 
 	"github.com/golang/protobuf/proto"
@@ -61,6 +62,10 @@ func init() {
 
 // GetLike returns the feature at the given Like.
 func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb.Like, error) {
+	headers, ok := metadata.FromIncomingContext(ctx)
+	if ok {
+		log.Debugf("req headers: %v", headers)
+	}
 	log.Debugf("GetLike query: '%v'", query)
 	if query == nil {
 		return &pb.Like{}, nil
@@ -76,6 +81,10 @@ func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb
 
 // ListLikes lists all likes contained within the given bounding Like.
 func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_ListLikesServer) error {
+	headers, ok := metadata.FromIncomingContext(stream.Context())
+	if ok {
+		log.Debugf("req headers: %v", headers)
+	}
 	log.Debugf("ListLikes query: '%v'", query)
 	if query.RefType == nil {
 		return nil
@@ -92,6 +101,10 @@ func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_Li
 
 // GetLikesSummary batch fetches the likes contained within the given bounding Like.
 func (s *beerLikesServer) GetLikesSummary(ctx context.Context, query *pb.LikesQuery) (*pb.LikesSummary, error) {
+	headers, ok := metadata.FromIncomingContext(ctx)
+	if ok {
+		log.Debugf("req headers: %v", headers)
+	}
 	log.Debugf("GetLikesSummary query: '%v'", query)
 	var total int32
 	var likes []*pb.Like

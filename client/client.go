@@ -19,6 +19,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/testdata"
 
 	pb "github.com/phriscage/beer-likes/beerlikes"
@@ -36,10 +37,13 @@ func printLike(client pb.BeerLikesClient, query *pb.LikeQuery) {
 	log.Printf("Getting like for like (%s)", query)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	like, err := client.GetLike(ctx, query)
+	var header, trailer metadata.MD // variable to store header and trailer
+	like, err := client.GetLike(ctx, query, grpc.Header(&header), grpc.Trailer(&trailer))
 	if err != nil {
 		log.Fatalf("%v.GetLikes(_) = _, %v: ", client, err)
 	}
+	log.Printf("res headers: %v", header)
+	log.Printf("res trailer: %v", trailer)
 	log.Println(like)
 }
 
@@ -54,6 +58,11 @@ func printLikes(client pb.BeerLikesClient, query *pb.LikesQuery) {
 	if err != nil {
 		log.Fatalf("%v.ListLikes(_) = _, %v", client, err)
 	}
+	// retrieve header
+	header, err := stream.Header()
+	// retrieve trailer
+	trailer := stream.Trailer()
+	log.Printf("res headers: %v", header)
 	for {
 		item, err := stream.Recv()
 		if err == io.EOF {
@@ -70,6 +79,7 @@ func printLikes(client pb.BeerLikesClient, query *pb.LikesQuery) {
 			likesSummary.Total--
 		}
 	}
+	log.Printf("res trailer: %v", trailer)
 	endTime := time.Now()
 	likesSummary.ElapsedTime = uint64(endTime.Sub(startTime))
 	log.Println(likesSummary)
@@ -110,8 +120,12 @@ func main() {
 	defer conn.Close()
 	client := pb.NewBeerLikesClient(conn)
 
-	// Looking for a valid like
-	// printLike(client, &pb.LikeQuery{RefType: &pb.RefType{Name: "beer", Id: "1"}})
+	md := metadata.Pairs(
+		"key", "string value",
+		"key-bin", string([]byte{96, 102}), // this binary data will be encoded (base64) before sending
+		// and will be decoded after being transferred.
+	)
+	log.Printf("metadata: %v", md)
 	printLike(client, &pb.LikeQuery{Id: "3e8f9d58-4148-4809-9392-63e90fbc8280"})
 
 	// Like missing.
