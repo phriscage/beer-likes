@@ -40,7 +40,8 @@ func printLike(client pb.BeerLikesClient, query *pb.LikeQuery) {
 	var header, trailer metadata.MD // variable to store header and trailer
 	like, err := client.GetLike(ctx, query, grpc.Header(&header), grpc.Trailer(&trailer))
 	if err != nil {
-		log.Fatalf("%v.GetLikes(_) = _, %v: ", client, err)
+		log.Printf("%v.GetLikes(_) = _, %v: ", client, err)
+		return
 	}
 	log.Printf("res headers: %v", header)
 	log.Printf("res trailer: %v", trailer)
@@ -127,6 +128,9 @@ func main() {
 	)
 	log.Printf("metadata: %v", md)
 	printLike(client, &pb.LikeQuery{Id: "3e8f9d58-4148-4809-9392-63e90fbc8280"})
+
+	// Like NotFound
+	printLike(client, &pb.LikeQuery{Id: "123-abc"})
 
 	// Like missing.
 	printLike(client, &pb.LikeQuery{})

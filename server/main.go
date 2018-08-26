@@ -24,8 +24,11 @@ import (
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/testdata"
 
 	"github.com/golang/protobuf/proto"
@@ -62,13 +65,9 @@ func init() {
 
 // GetLike returns the feature at the given Like.
 func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb.Like, error) {
-	headers, ok := metadata.FromIncomingContext(ctx)
-	if ok {
-		log.Debugf("req headers: %v", headers)
-	}
 	log.Debugf("GetLike query: '%v'", query)
 	if query == nil {
-		return &pb.Like{}, nil
+		return &pb.Like{}, status.Error(codes.InvalidArgument, fmt.Sprintf("%+v is not valid", query))
 	}
 	for _, item := range s.savedLikes {
 		if item.Id == query.Id {
@@ -76,18 +75,14 @@ func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb
 		}
 	}
 	// No like was found, return an unnamed like
-	return &pb.Like{}, nil
+	return &pb.Like{}, status.Error(codes.NotFound, fmt.Sprintf("%+v was not found", query))
 }
 
 // ListLikes lists all likes contained within the given bounding Like.
 func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_ListLikesServer) error {
-	headers, ok := metadata.FromIncomingContext(stream.Context())
-	if ok {
-		log.Debugf("req headers: %v", headers)
-	}
 	log.Debugf("ListLikes query: '%v'", query)
 	if query.RefType == nil {
-		return nil
+		return status.Error(codes.InvalidArgument, fmt.Sprintf("%+v is not valid", query))
 	}
 	for _, item := range s.savedLikes {
 		if proto.Equal(item.RefType, query.RefType) {
@@ -101,10 +96,6 @@ func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_Li
 
 // GetLikesSummary batch fetches the likes contained within the given bounding Like.
 func (s *beerLikesServer) GetLikesSummary(ctx context.Context, query *pb.LikesQuery) (*pb.LikesSummary, error) {
-	headers, ok := metadata.FromIncomingContext(ctx)
-	if ok {
-		log.Debugf("req headers: %v", headers)
-	}
 	log.Debugf("GetLikesSummary query: '%v'", query)
 	var total int32
 	var likes []*pb.Like
@@ -148,6 +139,55 @@ func newServer() *beerLikesServer {
 	return s
 }
 
+// Authorization unary interceptor function to handle authorize per RPC call
+func serverInterceptor(ctx context.Context,
+	req interface{},
+	info *grpc.UnaryServerInfo,
+	handler grpc.UnaryHandler) (interface{}, error) {
+	start := time.Now()
+	// Skip authorize when GetJWT is requested
+	//if info.FullMethod != "/proto.EventStoreService/GetJWT" {
+	//if err := authorize(ctx); err != nil {
+	//return nil, err
+	//}
+	//}
+
+	// Calls the handler
+	h, err := handler(ctx, req)
+
+	// Extract the metadata headers and peer info
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		err = status.Errorf(codes.InvalidArgument, "Retrieving metadata has failed")
+		log.Fatal(err)
+		return nil, err
+	}
+	pr, ok := peer.FromContext(ctx)
+	if !ok {
+		err = status.Errorf(codes.InvalidArgument, "Retrieving peer has failed")
+		log.Fatal(err)
+		return nil, err
+	}
+	if pr.Addr == net.Addr(nil) {
+		err = status.Errorf(codes.InvalidArgument, "Failed to get peer address")
+		log.Fatal(err)
+		return nil, err
+	}
+
+	// request/response logging
+	fields := log.Fields{
+		"remote_ip":    pr.Addr,
+		"current_time": time.Now().UTC().Format(time.RFC3339),
+		"full_method":  info.FullMethod,
+		"user-agent":   md["user-agent"][0],
+		"status_code":  codes.OK,
+		"elapsed_time": time.Since(start),
+	}
+	log.WithFields(fields).Info()
+
+	return h, err
+}
+
 func main() {
 	flag.Parse()
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
@@ -168,6 +208,8 @@ func main() {
 		}
 		opts = []grpc.ServerOption{grpc.Creds(creds)}
 	}
+
+	opts = []grpc.ServerOption{grpc.UnaryInterceptor(serverInterceptor)}
 	log.Infof("Starting grpc server on '%d'", port)
 	grpcServer := grpc.NewServer(opts...)
 	pb.RegisterBeerLikesServer(grpcServer, newServer())
