@@ -67,7 +67,7 @@ func init() {
 func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb.Like, error) {
 	log.Debugf("GetLike query: '%v'", query)
 	if query == nil {
-		return &pb.Like{}, status.Error(codes.InvalidArgument, fmt.Sprintf("%+v is not valid", query))
+		return &pb.Like{}, status.Error(codes.InvalidArgument, fmt.Sprintf("'%+v' is not valid", query))
 	}
 	for _, item := range s.savedLikes {
 		if item.Id == query.Id {
@@ -75,14 +75,14 @@ func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb
 		}
 	}
 	// No like was found, return an unnamed like
-	return &pb.Like{}, status.Error(codes.NotFound, fmt.Sprintf("%+v was not found", query))
+	return &pb.Like{}, status.Error(codes.NotFound, fmt.Sprintf("'%+v' was not found", query))
 }
 
 // ListLikes lists all likes contained within the given bounding Like.
 func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_ListLikesServer) error {
 	log.Debugf("ListLikes query: '%v'", query)
 	if query.RefType == nil {
-		return status.Error(codes.InvalidArgument, fmt.Sprintf("%+v is not valid", query))
+		return status.Error(codes.InvalidArgument, fmt.Sprintf("'%+v' is not valid", query))
 	}
 	for _, item := range s.savedLikes {
 		if proto.Equal(item.RefType, query.RefType) {
@@ -144,7 +144,7 @@ func serverInterceptor(ctx context.Context,
 	req interface{},
 	info *grpc.UnaryServerInfo,
 	handler grpc.UnaryHandler) (interface{}, error) {
-	start := time.Now()
+	startTime := time.Now()
 	// Skip authorize when GetJWT is requested
 	//if info.FullMethod != "/proto.EventStoreService/GetJWT" {
 	//if err := authorize(ctx); err != nil {
@@ -174,14 +174,19 @@ func serverInterceptor(ctx context.Context,
 		return nil, err
 	}
 
+	statusCode := fmt.Sprintf("%+v", codes.OK)
+	if err != nil {
+		statusCode = fmt.Sprintf("%+v", err)
+	}
+	endTime := time.Now()
 	// request/response logging
 	fields := log.Fields{
-		"remote_ip":    pr.Addr,
-		"current_time": time.Now().UTC().Format(time.RFC3339),
+		"remote_ip": pr.Addr,
+		// "current_time": time.Now().UTC().Format(time.RFC3339),
 		"full_method":  info.FullMethod,
 		"user-agent":   md["user-agent"][0],
-		"status_code":  codes.OK,
-		"elapsed_time": time.Since(start),
+		"status_code":  statusCode,
+		"elapsed_time": uint64(endTime.Sub(startTime)),
 	}
 	log.WithFields(fields).Info()
 
