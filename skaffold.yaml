@@ -6,9 +6,4 @@ build:
 deploy:
   kubectl:
     manifests:
-      - ./kubernetes-manifests/*.yaml
-profiles:
-  - name: gcb
-    build:
-      googleCloudBuild:
-        projectId: chrispage-dev
+      - ./kubernetes-manifests/likes-api*.yaml

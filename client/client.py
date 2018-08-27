@@ -23,7 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 def get_one_like(stub, like):
-    like = stub.GetLike(like)
+    try:
+        like = stub.GetLike(like)
+    except grpc.RpcError as error:
+        logger.warning(error)
+        return
     if not like.id:
         logger.warning("Server returned incomplete like")
         return
@@ -31,8 +35,8 @@ def get_one_like(stub, like):
 
 
 def get_like(stub):
-    query = bl_pb2.LikeQuery(id="3e8f9d58-4148-4809-9392-63e90fbc8280")
-    get_one_like(stub, query)
+    get_one_like(stub, bl_pb2.LikeQuery(id="3e8f9d58-4148-4809-9392-63e90fbc8280"))
+    get_one_like(stub, bl_pb2.LikeQuery(id="123-abc"))
     get_one_like(stub, bl_pb2.LikeQuery())
 
 
