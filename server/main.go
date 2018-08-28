@@ -83,12 +83,19 @@ func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_Li
 	if query.RefType == nil {
 		return status.Error(codes.InvalidArgument, fmt.Sprintf("'%+v' is not valid", query))
 	}
+	sent := false
 	for _, item := range s.savedLikes {
 		if proto.Equal(item.RefType, query.RefType) {
 			if err := stream.Send(item); err != nil {
 				return err
 			}
+			sent = true
 		}
+	}
+
+	if sent == false {
+		// No like was found, return an unnamed like
+		return status.Error(codes.NotFound, fmt.Sprintf("'%+v' was not found", query))
 	}
 	return nil
 }

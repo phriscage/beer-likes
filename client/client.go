@@ -148,4 +148,9 @@ func main() {
 		RefType: &pb.RefType{Name: "beer", Id: "1"},
 	})
 
+	// return all the likes for an incorrect reftype
+	printLikes(client, &pb.LikesQuery{
+		RefType: &pb.RefType{Name: "beer", Id: "xyz"},
+	})
+
 }
