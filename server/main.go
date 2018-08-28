@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net"
 	"os"
@@ -25,13 +24,14 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/testdata"
 
 	"github.com/golang/protobuf/proto"
+
+	"github.com/grpc-ecosystem/go-grpc-middleware"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
+	"github.com/grpc-ecosystem/go-grpc-middleware/tags"
+	log "github.com/sirupsen/logrus"
 
 	pb "github.com/phriscage/beer-likes/beerlikes"
 )
@@ -42,6 +42,7 @@ var (
 	keyFile    = flag.String("key_file", "", "The TLS key file")
 	jsonDBFile = flag.String("json_db_file", "testdata/beer_likes_db.json", "A json file containing a list of features")
 	port       = flag.Int("port", 10000, "The server port")
+	host       = flag.String("host", "127.0.0.1", "The server host ip")
 )
 
 type beerLikesServer struct {
@@ -65,7 +66,6 @@ func init() {
 
 // GetLike returns the feature at the given Like.
 func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb.Like, error) {
-	log.Debugf("GetLike query: '%v'", query)
 	if query == nil {
 		return &pb.Like{}, status.Error(codes.InvalidArgument, fmt.Sprintf("'%+v' is not valid", query))
 	}
@@ -80,7 +80,6 @@ func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb
 
 // ListLikes lists all likes contained within the given bounding Like.
 func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_ListLikesServer) error {
-	log.Debugf("ListLikes query: '%v'", query)
 	if query.RefType == nil {
 		return status.Error(codes.InvalidArgument, fmt.Sprintf("'%+v' is not valid", query))
 	}
@@ -96,7 +95,6 @@ func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_Li
 
 // GetLikesSummary batch fetches the likes contained within the given bounding Like.
 func (s *beerLikesServer) GetLikesSummary(ctx context.Context, query *pb.LikesQuery) (*pb.LikesSummary, error) {
-	log.Debugf("GetLikesSummary query: '%v'", query)
 	var total int32
 	var likes []*pb.Like
 	startTime := time.Now()
@@ -122,10 +120,10 @@ func (s *beerLikesServer) GetLikesSummary(ctx context.Context, query *pb.LikesQu
 func (s *beerLikesServer) loadLikes(filePath string) {
 	file, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		log.Fatalf("Failed to load default likes: %v", err)
+		log.Warnf("Failed to load default likes: %v", err)
 	}
 	if err := json.Unmarshal(file, &s.savedLikes); err != nil {
-		log.Fatalf("Failed to load default likes: %v", err)
+		log.Warnf("Failed to load default likes: %v", err)
 	}
 }
 
@@ -139,84 +137,43 @@ func newServer() *beerLikesServer {
 	return s
 }
 
-// Authorization unary interceptor function to handle authorize per RPC call
-func serverInterceptor(ctx context.Context,
-	req interface{},
-	info *grpc.UnaryServerInfo,
-	handler grpc.UnaryHandler) (interface{}, error) {
-	startTime := time.Now()
-	// Skip authorize when GetJWT is requested
-	//if info.FullMethod != "/proto.EventStoreService/GetJWT" {
-	//if err := authorize(ctx); err != nil {
-	//return nil, err
-	//}
-	//}
+func defaultServerOpts() []grpc.ServerOption {
+	return []grpc.ServerOption{}
+}
 
-	// Calls the handler
-	h, err := handler(ctx, req)
-
-	// Extract the metadata headers and peer info
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		err = status.Errorf(codes.InvalidArgument, "Retrieving metadata has failed")
-		log.Fatal(err)
-		return nil, err
-	}
-	pr, ok := peer.FromContext(ctx)
-	if !ok {
-		err = status.Errorf(codes.InvalidArgument, "Retrieving peer has failed")
-		log.Fatal(err)
-		return nil, err
-	}
-	if pr.Addr == net.Addr(nil) {
-		err = status.Errorf(codes.InvalidArgument, "Failed to get peer address")
-		log.Fatal(err)
-		return nil, err
-	}
-
-	statusCode := fmt.Sprintf("%+v", codes.OK)
-	if err != nil {
-		statusCode = fmt.Sprintf("%+v", err)
-	}
-	endTime := time.Now()
-	// request/response logging
-	fields := log.Fields{
-		"remote_ip": pr.Addr,
-		// "current_time": time.Now().UTC().Format(time.RFC3339),
-		"full_method":  info.FullMethod,
-		"user-agent":   md["user-agent"][0],
-		"status_code":  statusCode,
-		"elapsed_time": uint64(endTime.Sub(startTime)),
-	}
-	log.WithFields(fields).Info()
-
-	return h, err
+// withDuration returns the duration of a grpc connection in nanoseconds
+func withDuration(duration time.Duration) (key string, value interface{}) {
+	return "grpc.time_ns", duration.Nanoseconds()
 }
 
 func main() {
 	flag.Parse()
-	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
+	host_port := fmt.Sprintf("%s:%d", *host, *port)
+	lis, err := net.Listen("tcp", host_port)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
+
 	var opts []grpc.ServerOption
-	if *tls {
-		if *certFile == "" {
-			*certFile = testdata.Path("server1.pem")
-		}
-		if *keyFile == "" {
-			*keyFile = testdata.Path("server1.key")
-		}
-		creds, err := credentials.NewServerTLSFromFile(*certFile, *keyFile)
-		if err != nil {
-			log.Fatalf("Failed to generate credentials %v", err)
-		}
-		opts = []grpc.ServerOption{grpc.Creds(creds)}
+
+	logrusEntry := log.NewEntry(log.StandardLogger())
+	logOpts := []grpc_logrus.Option{
+		grpc_logrus.WithDurationField(withDuration),
 	}
 
-	opts = []grpc.ServerOption{grpc.UnaryInterceptor(serverInterceptor)}
-	log.Infof("Starting grpc server on '%d'", port)
-	grpcServer := grpc.NewServer(opts...)
+	opts = append(
+		opts,
+		grpc_middleware.WithUnaryServerChain(
+			grpc_ctxtags.UnaryServerInterceptor(),
+			grpc_logrus.UnaryServerInterceptor(logrusEntry, logOpts...)),
+		grpc_middleware.WithStreamServerChain(
+			grpc_ctxtags.StreamServerInterceptor(),
+			grpc_logrus.StreamServerInterceptor(logrusEntry, logOpts...)),
+	)
+
+	log.Infof("Starting grpc server on '%s'", host_port)
+	grpcServer := grpc.NewServer(append(defaultServerOpts(), opts...)...)
+
 	pb.RegisterBeerLikesServer(grpcServer, newServer())
 	grpcServer.Serve(lis)
 	log.Infof("Stopping grpc server...")

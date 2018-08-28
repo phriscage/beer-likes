@@ -25,8 +25,9 @@ COPY beerlikes /go/src/github.com/phriscage/beer-likes/beerlikes
 RUN go get -d -v \
 	golang.org/x/net/context \
 	google.golang.org/grpc \
-	google.golang.org/grpc/credentials \
-	google.golang.org/grpc/testdata \
+	github.com/grpc-ecosystem/go-grpc-middleware \ 
+	github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus \
+	github.com/grpc-ecosystem/go-grpc-middleware/tags \
         github.com/sirupsen/logrus \
 	github.com/golang/protobuf/proto
 
@@ -42,6 +43,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 EXPOSE 10000
 
 ENTRYPOINT ["/app/main"]
+CMD ["--host", "0.0.0.0"]
 
 
 ## final stage
@@ -49,3 +51,4 @@ FROM alpine:3.7
 WORKDIR /app
 COPY --from=build-env /app /app
 ENTRYPOINT ["/app/main"]
+CMD ["--host", "0.0.0.0"]
