@@ -67,7 +67,7 @@ func init() {
 // GetLike returns the feature at the given Like.
 func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb.Like, error) {
 	if query == nil {
-		return &pb.Like{}, status.Error(codes.InvalidArgument, fmt.Sprintf("'%+v' is not valid", query))
+		return &pb.Like{}, status.Error(codes.InvalidArgument, fmt.Sprintf("%s is not valid", query.Id))
 	}
 	for _, item := range s.savedLikes {
 		if item.Id == query.Id {
@@ -75,13 +75,13 @@ func (s *beerLikesServer) GetLike(ctx context.Context, query *pb.LikeQuery) (*pb
 		}
 	}
 	// No like was found, return an unnamed like
-	return &pb.Like{}, status.Error(codes.NotFound, fmt.Sprintf("'%+v' was not found", query))
+	return &pb.Like{}, status.Error(codes.NotFound, fmt.Sprintf("%s was not found", query.Id))
 }
 
 // ListLikes lists all likes contained within the given bounding Like.
 func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_ListLikesServer) error {
 	if query.RefType == nil {
-		return status.Error(codes.InvalidArgument, fmt.Sprintf("'%+v' is not valid", query))
+		return status.Error(codes.InvalidArgument, fmt.Sprintf("%s is not valid", query.RefType.Id))
 	}
 	sent := false
 	for _, item := range s.savedLikes {
@@ -95,7 +95,7 @@ func (s *beerLikesServer) ListLikes(query *pb.LikesQuery, stream pb.BeerLikes_Li
 
 	if sent == false {
 		// No like was found, return an unnamed like
-		return status.Error(codes.NotFound, fmt.Sprintf("'%+v' was not found", query))
+		return status.Error(codes.NotFound, fmt.Sprintf("%s was not found", query.RefType.Id))
 	}
 	return nil
 }
@@ -178,7 +178,7 @@ func main() {
 			grpc_logrus.StreamServerInterceptor(logrusEntry, logOpts...)),
 	)
 
-	log.Infof("Starting grpc server on '%s'", host_port)
+	log.Infof("Starting grpc server on %s", host_port)
 	grpcServer := grpc.NewServer(append(defaultServerOpts(), opts...)...)
 
 	pb.RegisterBeerLikesServer(grpcServer, newServer())

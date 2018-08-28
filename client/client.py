@@ -7,6 +7,7 @@ import argparse
 import logging
 import os
 import sys
+import simplejson as json
 
 import grpc
 
@@ -26,7 +27,9 @@ def get_one_like(stub, like):
     try:
         like = stub.GetLike(like)
     except grpc.RpcError as error:
-        logger.warning(error)
+        logger.warning(error.code())
+        logger.warning(error.details())
+        logger.warning(json.loads(error.debug_error_string()))
         return
     if not like.id:
         logger.warning("Server returned incomplete like")
